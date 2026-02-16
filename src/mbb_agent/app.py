@@ -1,7 +1,8 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from pydantic import BaseModel
 from typing import List
-from .storage import append_event, get_recent_events
+from .dependencies import get_storage
+from .storage import Storage
 
 app = FastAPI(title="MBB Agent Phase0")
 
@@ -18,11 +19,11 @@ def toy_reply(user_message: str) -> str:
     return f"記録しました: {user_message}"
 
 @app.post("/chat", response_model=ChatOut)
-def chat(payload: ChatIn):
-    append_event(payload.session_id, "user", payload.user_message)
+def chat(payload: ChatIn, storage: Storage = Depends(get_storage)):
+    storage.append_event(payload.session_id, "user", payload.user_message)
     assistant = toy_reply(payload.user_message)
-    append_event(payload.session_id, "assistant", assistant)
-    events = get_recent_events(payload.session_id)
+    storage.append_event(payload.session_id, "assistant", assistant)
+    events = storage.get_recent_events(payload.session_id)
     return ChatOut(
         session_id=payload.session_id,
         assistant_message=assistant,
@@ -30,5 +31,5 @@ def chat(payload: ChatIn):
     )
 
 @app.get("/memory")
-def memory(session_id: str):
-    return get_recent_events(session_id)
+def memory(session_id: str, storage: Storage = Depends(get_storage)):
+    return storage.get_recent_events(session_id)
